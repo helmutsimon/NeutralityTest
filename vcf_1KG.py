@@ -87,17 +87,11 @@ def test_neutrality_Counter(n, sfs_c, random_state=None, reps=50000):
     return h1 / h2
 
 
-def get_sfs(chrom, start, end, pop):
-    """Get SFS from sequence for given population."""
-    fname = 'Data sets/1KG variants full/integrated_call_samples_v3.20130502.ALL.panel'
-    panel = pd.read_csv(fname, sep=None, engine='python', skipinitialspace=True, index_col=0)
-    vcf_filename = 'Data sets/1KG variants full/ALL.chr' + str(chrom) \
-                + '.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz'
-    vcf_file = Reader(filename=vcf_filename, compressed=True, encoding='utf-8')
-    sample_count = 0
-    for proband in vcf_file.samples:
-        if panel.loc[proband, 'pop'] == pop:
-            sample_count += 1
+def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
+    """Get SFS from sequence for given population. The panl fil is used to select probands."""
+    sample_count = panel.shape[0]
+    if not select_chr:
+        sample_count = 2 * sample_count
     snps = vcf_file.fetch(str(chrom), start, end)
     count, anc_count = 0, 0
     allele_counts = list()
@@ -108,24 +102,24 @@ def get_sfs(chrom, start, end, pop):
             count += 1
             #Test the ancestral is one of the alleles
             if record.INFO['AA'][0] not in [record.REF, record.ALT]:
-                #print(record.ID, record.INFO['AA'][0], record.REF, record.ALT)
                 continue
             anc_count += 1
             for proband in record.samples:
-                if panel.loc[proband.sample, 'pop'] == pop:
+                if proband.sample in panel.index:
                     gt = proband.gt_alleles
-                    allele_count += (int(gt[0]) + int(gt[1]))
-                #allele_count = record.INFO['AC'][0]
+                    if select_chr:
+                        allele_count += int(gt[0])
+                    else:
+                        allele_count += int(gt[0]) + int(gt[1])
                 #print(record.ID.ljust(11), record.POS, record.REF, record.INFO['AA'][0], record.ALT[0],
                  #         "%3d" % allele_count, "%.6f" % (allele_count / 5008), record.INFO['AF'])
-            if allele_count < 2 * sample_count:    #Some SNPs may not segregate in some subpopulations.
+            if allele_count < sample_count:    #Some SNPs may not segregate in some subpopulations.
                 allele_counts.append(allele_count)
             else:
                 non_seg_snps.append(record.ID)
-    print('Total SNPs               =', count)
-    print('SNPs with valid ancestor =', anc_count)
+    #print('Total SNPs               =', count)
+    #print('SNPs with valid ancestor =', anc_count)
     print('Sample size              =', sample_count)
-    #print(allele_counts)
     sfs = Counter(allele_counts)
     del sfs[0]
     print('Seg. sites in population =', sum(sfs.values()))
