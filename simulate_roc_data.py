@@ -10,7 +10,8 @@
 
     A sample run statement is:
 
-    nohup python3 /Users/helmutsimon/repos/NeutralityTest/simulate_roc_data.py 001 1e5 20 1e3 2.5e-8 1e-4 200 > srd001.txt & """
+    nohup python3 /Users/helmutsimon/repos/NeutralityTest/simulate_roc_data.py cd01 10 0.0001 10 > srd_cd01.txt &
+    """
 
 import numpy as np
 import os, sys
@@ -87,12 +88,13 @@ def test_neutrality2(sfs, random_state=None, reps=50000):
     avge_mx = erm.dot(j_n)
     kvec = np.arange(2, n + 1, dtype=int)
     variates = expon.rvs(scale=1 / binom(kvec, 2), size=(reps, n - 1), random_state=random_state)
-    total_branch_lengths = variates @ kvec
-    rel_branch_lengths = np.diag(1 / total_branch_lengths) @ variates
-    qvars = (erm @ rel_branch_lengths.T).T
+    total_branch_lengths = variates.dot(kvec)
+    rel_branch_lengths = np.diag(1 / total_branch_lengths).dot(variates)
+    qvars = (erm.dot(rel_branch_lengths.T)).T
     h1 = np.mean(multinomial.pmf(sfs, np.sum(sfs), qvars))
     sample = dirichlet.rvs(np.ones(n - 1), size=reps, random_state=random_state)
-    sample = avge_mx @ sample.T
+    #sample = avge_mx @ sample.T
+    sample = avge_mx.dot(sample.T)
     pmfs = multinomial.pmf(sfs, np.sum(sfs), sample.T)
     h2 = np.mean(pmfs)
     if h1 == 0 or h2 == 0:
@@ -156,45 +158,67 @@ def calculate_D(sfs):
     return tajD
 
 
-def run_msprime_simulations(reps, pop_size, n, length, recombination_rate, mutation_rate, growth_rate,
-                SAA, SaA, SF, events_file, tree_law, mfilename, concentration, print_history, folded=False):
+def relative_branch_lengths(coalescence_times):
+    """Calculate relative branch lengths from coalescence_times."""
+    n = len(coalescence_times) + 1
+    shifted = np.concatenate((np.zeros(1), coalescence_times))[:-1]
+    branch_lengths = np.flipud(coalescence_times - shifted)
+    kvec = np.arange(2, n + 1, dtype=int)
+    total_branch_lengths = branch_lengths.dot(kvec)
+    # rel_branch_lengths = np.diag(1 / total_branch_lengths) @ branch_lengths
+    rel_branch_lengths = branch_lengths / total_branch_lengths
+    return rel_branch_lengths
+
+
+def run_msprime_simulations(reps, pop_size, n, length, recombination_rate, mutation_rate, seg_sites,
+        growth_rate, SAA, SaA, SF, events_file, tree_law, mfilename, concentration, print_history, folded=False):
+    """Simulate a (large) population and take a random sample from it. We return the details of this sample tree
+    (sfs, branch lengths and matrix) as well as averages from other population samples to provide data for empirical
+    prior. In the first statement we generate a tree for the entire population size."""
+
+    demographic_events = msprime_functions.read_demographic_history(events_file, print_history)
+    population_configurations = [msprime.PopulationConfiguration(growth_rate=growth_rate,
+                                                                 initial_size=pop_size, sample_size=n)]
+    demographic_hist = msprime.DemographyDebugger(demographic_events=demographic_events,
+                                                  population_configurations=population_configurations)
+    if print_history:
+        demographic_hist.print_history()
+    tree_sequences = msprime.simulate(Ne=pop_size, population_configurations=population_configurations,
+                                      demographic_events=demographic_events, length=length, recombination_rate=0, \
+                                      mutation_rate=mutation_rate, num_replicates=reps)
     sfs_list, trs, taj_D = list(), list(), list()
-    not_enough = 0
     kvec = np.arange(2, n + 1, dtype=int)
     wf_variates = expon.rvs(scale=1 / binom(kvec, 2), size=(reps, n - 1))
-    for i in range(reps):
-        tree_sequence, variant_array = msprime_functions.generate_population_tree(pop_size, n, length,
-                                        recombination_rate, mutation_rate, growth_rate, events_file, print_history)
-                #print(variant_array.shape)
-        print_history = False
-        if variant_array.shape[0] < 4:
-            not_enough += 1
-            continue
-        sfs = msprime_functions.compute_sfs(variant_array)
+    for tree_sequence in tree_sequences:
+        tree = next(tree_sequence.trees())
+        root = tree.get_root()
+        leaves = list(tree.leaves(root))
+        matrix, coalescence_times = msprime_functions.analyse_tree(n, tree, leaves)
+        rel_branch_lengths = relative_branch_lengths(coalescence_times)
+        erm = get_ERM_matrix(n)
+        qvar = (erm @ rel_branch_lengths.T).T
+        sfs = multinomial.rvs(seg_sites, qvar)
+        sfs_list.append(sfs)
         taj_D.append(calculate_D(sfs))
         sfs_list.append(sfs)
         trs.append(test_neutrality(sfs, wf_variates, projdir, tree_law, mfilename, concentration, reps))
-    if not_enough:
-        print('#insufficient segregating sites: ', not_enough)
     return trs, taj_D, sfs_list
 
 
-def run_msms_simulations(reps, pop_size, n, length, recombination_rate, mutation_rate, growth_rate,
-        SAA, SaA, SF, events_file, tree_law, mfilename, concentration, print_history, folded=False):
+def run_msms_simulations(reps, pop_size, n, length, recombination_rate, mutation_rate, seg_sites,
+        growth_rate, SAA, SaA, SF, events_file, tree_law, mfilename, concentration, print_history, folded=False):
     if events_file is not None:
         raise ValueError('Events file supplied for msms simulation.')
     if growth_rate != 0:
         raise ValueError('growth_rate must be zero for msms simulation.')
     sfs_list, trs, taj_D = list(), list(), list()
-    not_enough = 0
     kvec = np.arange(2, n + 1, dtype=int)
     wf_variates = expon.rvs(scale=1 / binom(kvec, 2), size=(reps, n - 1))
-    theta = 4 * pop_size * mutation_rate * length
     if SAA is None:
-        msms_cmd = ["java",  "-jar", "msms.jar", str(n), str(reps),  "-t",  str(theta),  "-N", str(pop_size)]
+        msms_cmd = ["java", "-jar", "msms.jar", str(n), str(reps), "-s",  str(seg_sites),  "-N", str(pop_size)]
     else:
-        msms_cmd = ["java", "-jar", "msms.jar", str(n), str(reps), "-t", str(theta), "-SAA", str(SAA), "-SaA", str(SaA),
-            "-SF", str(SF), "-N", str(pop_size)]
+        msms_cmd = ["java", "-jar", "msms.jar", str(n), str(reps), "-s",  str(seg_sites), "-SAA", str(SAA),
+                    "-SaA", str(SaA), "-SF", str(SF), "-N", str(pop_size)]
     print(msms_cmd)
     msms_out = subprocess.check_output(msms_cmd)
     ms_lines = msms_out.splitlines()
@@ -208,9 +232,6 @@ def run_msms_simulations(reps, pop_size, n, length, recombination_rate, mutation
             variant_array.append([*line])
         else:
             variant_array = np.array(variant_array, dtype=int).T
-            if variant_array.shape[0] < 4:
-                not_enough += 1
-                continue
             sfs = msprime_functions.compute_sfs(variant_array)
             #print(sfs)
             sfs_list.append(sfs)
@@ -224,33 +245,32 @@ def run_msms_simulations(reps, pop_size, n, length, recombination_rate, mutation
             trs.append(tr)
             taj_D.append(calculate_D(sfs))
             variant_array = list()
-    if not_enough:
-        print('# skipped for insufficient segregating sites: ', not_enough)
     return trs, taj_D, sfs_list
 
 
 @click.command()
 @click.argument('job_no')
-@click.argument('pop_size', type=float)
 @click.argument('n', type=int)
-@click.argument('length', type=float)
-@click.argument('mutation_rate')
 @click.argument('growth_rate', type=float)
-@click.argument('reps', type=int)
+@click.argument('seg_sites', type=int)
+@click.option('-p', '--pop_size', type=float, default=100000)
+@click.option('-len', '--length', type=float, default=1000)
+@click.option('-mu', '--mutation_rate', default='2.5e-8')
+@click.option('-rep', '--reps', type=int, default=10000)
 @click.option('-sho', '--sho', type=float, default=None)
 @click.option('-she', '--she', type=float, default=None)
 @click.option('-sf', '--sf', type=float, default=None)
 @click.option('-e', '--events_file', default=None)
 @click.option('-r', '--recombination_rate', default=0, type=float)
 @click.option('-p', '--print_history', default=True, type=bool)
-@click.option('-l', '--tree_law', default='yule')
+@click.option('-law', '--tree_law', default='yule')
 @click.option('-f', '--folded', default=False, type=bool)
 @click.option('-m', '--mfilename', default=None)
 @click.option('-c', '--concentration', type=float, default=1)
 @click.option('-d', '--dir', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
-def main(reps, job_no, pop_size, n, length, mutation_rate, growth_rate, sho, she, sf, events_file,
-         recombination_rate, print_history, tree_law, folded, mfilename, concentration, dir):
+def main(reps, job_no, pop_size, n, length, mutation_rate, seg_sites, growth_rate, sho, she, sf,
+         events_file, recombination_rate, print_history, tree_law, folded, mfilename, concentration, dir):
     start_time = time()
     np.set_printoptions(precision=3)                #
     if not os.path.exists(dir):
@@ -290,14 +310,16 @@ def main(reps, job_no, pop_size, n, length, mutation_rate, growth_rate, sho, she
     results_true = pd.DataFrame()
     print('Neutral population')
     trs, taj_D, sfs_list = run_simulations(reps, pop_size, n, length, recombination_rate,
-                mrate0, 0, None, None, None, None, tree_law, mfilename, concentration, print_history)
+                mrate0, seg_sites, 0, None, None, None, None, tree_law, mfilename, concentration,
+                print_history)
     results_false['bayes'] = trs
     results_false['taj'] = taj_D
     sfs_list = np.array(sfs_list)
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs constant population'.ljust(50))
     print('Non-neutral population')
-    trs, taj_D, sfs_list = run_simulations(reps, pop_size, n, length, recombination_rate, mrate1,
-        growth_rate, sho, she, sf, events_file, tree_law, mfilename, concentration, print_history, folded)
+    trs, taj_D, sfs_list = run_simulations(reps, pop_size, n, length, recombination_rate,
+        mrate1, seg_sites, growth_rate, sho, she, sf, events_file, tree_law, mfilename, concentration,
+        print_history, folded)
     results_true['bayes'] = trs
     results_true['taj'] = taj_D
     sfs_list = np.array(sfs_list)
