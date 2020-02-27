@@ -13,13 +13,13 @@ from scipy.stats import dirichlet
 import pandas as pd
 
 
-def gt_total_mutations(record, pop):
-    #record.INFO['AC'] does the same thing.
-    result = 0
-    for proband in record.samples:
-        gt = proband.gt_alleles
-        result += (int(gt[0]) + int(gt[1]))
-    return result
+#def gt_total_mutations(record, pop):
+#    #record.INFO['AC'] does the same thing.
+#    result = 0
+#    for proband in record.samples:
+#        gt = proband.gt_alleles
+#        result += (int(gt[0]) + int(gt[1]))
+#    return result
 
 
 def pi_calc_Counter(n, sfs):
@@ -61,23 +61,24 @@ def get_ERM_matrix(n):
     return ERM_matrix
 
 
-def test_neutrality_Counter(n, sfs_c, random_state=None, reps=50000):
+def test_neutrality_Counter(n, sfs_c, random_state=None, variates=None, reps=50000):
     """Calculate odds ratio for neutral/not neutral from site frequency spectrum in form
     of a Counter object."""
     j_n = np.diag(1 / np.arange(2, n + 1))
     erm = get_ERM_matrix(n)
     avge_mx = erm.dot(j_n)
     kvec = np.arange(2, n + 1, dtype=int)
-    variates = expon.rvs(scale=1 / binom(kvec, 2), size=(reps, n - 1), random_state=random_state)
-    total_branch_lengths = variates @ kvec
-    rel_branch_lengths = np.diag(1 / total_branch_lengths) @ variates
-    qvars = (erm @ rel_branch_lengths.T).T
+    if variates is None:
+        variates = expon.rvs(scale=1 / binom(kvec, 2), size=(reps, n - 1), random_state=random_state)
+    total_branch_lengths = variates.dot(kvec)
+    rel_branch_lengths = np.diag(1 / total_branch_lengths).dot(variates)
+    qvars = (erm.dot(rel_branch_lengths.T)).T
     sfs = np.zeros(n - 1, int)
     for i in sfs_c.keys():
         sfs[i - 1] = sfs_c[i]
     h1 = np.mean(multinomial.pmf(sfs, np.sum(sfs), qvars))
     sample = dirichlet.rvs(np.ones(n - 1), size=reps, random_state=random_state)
-    sample = avge_mx @ sample.T
+    sample = avge_mx.dot(sample.T)
     pmfs = multinomial.pmf(sfs, np.sum(sfs), sample.T)
     h2 = np.mean(pmfs)
     if h1 == 0 or h2 == 0:
@@ -88,7 +89,7 @@ def test_neutrality_Counter(n, sfs_c, random_state=None, reps=50000):
 
 
 def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
-    """Get SFS from sequence for given population. The panl fil is used to select probands."""
+    """Get SFS from sequence for given population. The panel file is used to select probands."""
     sample_count = panel.shape[0]
     if not select_chr:
         sample_count = 2 * sample_count
@@ -132,3 +133,40 @@ def expand_sfs(n, sfs_c):
     for i in sfs_c.keys():
         sfs[i - 1] = sfs_c[i]
     return sfs
+
+
+def create_heatmap_table(results, panel_all, statistic):
+    results['rlnt'] = np.log10(results['rlnt'])
+    panel2 = panel_all[['pop', 'super_pop']]
+    pop_tab = panel2.drop_duplicates(subset=['pop', 'super_pop'])
+    heat_table = results.pivot(index='pop', columns='segstart', values=statistic)
+    heat_table = heat_table.merge(pop_tab, on='pop')
+    heat_table = heat_table.sort_values(['super_pop'])
+    heat_table = heat_table.drop(columns='super_pop')
+    heat_table.set_index('pop', inplace=True)
+    return heat_table
+
+
+def count_haplotypes(vcf_file, panel, pop, chrom, start, end):
+    """Analyse vcf data and return a table of haplotypes and their counts for a given population
+    and genome segment."""
+    snps = vcf_file.fetch(str(chrom), start, end)
+    columns = [snp.ID for snp in snps]
+    columns = list(set(columns))
+    count = 0
+    snps = vcf_file.fetch(str(chrom), start, end)
+    panel = panel[panel['pop'] == pop]
+    index = [str(x) for x in panel.index]
+    result = np.zeros((len(index), len(columns)), dtype=int)
+    result = pd.DataFrame(result, index=index, columns=columns)
+    for record in snps:
+        if record.is_snp:
+            for proband in record.samples:
+                if proband.sample in [str(x) for x in panel.index]:
+                    gt = proband.gt_alleles
+                    if gt[0] != '0':
+                        count += 1
+                        result.loc[proband.sample, record.ID] = 1
+    assert count == result.sum().sum(), "Allele count error."
+    return result.groupby(columns).size().reset_index(name='Count')
+
