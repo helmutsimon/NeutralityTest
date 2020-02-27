@@ -18,6 +18,17 @@ def get_ERM_matrix(n):
     return ERM_matrix
 
 
+def get_ERM_matrix_test(n):
+    ERM_matrix = np.zeros((n - 1, n - 1))
+    for m in range(n - 1):
+        for k in range(n - 1):
+            try:
+                ERM_matrix[m, k] = (k + 2) * binom(n - m - 2, k) / binom(n - 1, k + 1)
+            except RunTimeWarning:
+                print(n,m,k)
+    return ERM_matrix
+
+
 def mul(theta):
     def multinom(p):
         return multinomial.rvs(theta, p)
