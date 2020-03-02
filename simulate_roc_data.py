@@ -297,6 +297,13 @@ def main(reps, job_no, pop_size, n, length, mutation_rate, growth_rate, sho, she
     results_false['bayes'] = trs
     results_false['taj'] = taj_D
     sfs_list = np.array(sfs_list)
+
+    outfile_name = 'data/sfs_neutral_' + job_no + '.pklz'
+    with gzip.open(outfile_name, 'wb') as outfile:
+        pickle.dump(sfs_list, outfile)
+    outfile = open(outfile_name, 'r')
+    LOGGER.output_file(outfile.name)
+
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs constant population'.ljust(50))
     print('Non-neutral population')
     trs, taj_D, sfs_list = run_simulations(reps, pop_size, n, length, recombination_rate, mrate1,
@@ -304,6 +311,11 @@ def main(reps, job_no, pop_size, n, length, mutation_rate, growth_rate, sho, she
     results_true['bayes'] = trs
     results_true['taj'] = taj_D
     sfs_list = np.array(sfs_list)
+    outfile_name = 'data/sfs_non_neutral_' + job_no + '.pklz'
+    with gzip.open(outfile_name, 'wb') as outfile:
+        pickle.dump(sfs_list, outfile)
+    outfile = open(outfile_name, 'r')
+    LOGGER.output_file(outfile.name)
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs non-neutral population'.ljust(50))
     fname = 'data/roc_data_false_' + job_no + '.csv'
     results_false.to_csv(fname)
