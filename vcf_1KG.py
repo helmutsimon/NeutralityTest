@@ -90,9 +90,9 @@ def test_neutrality_Counter(n, sfs_c, random_state=None, variates=None, reps=500
 
 def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
     """Get SFS from sequence for given population. The panel file is used to select probands."""
-    sample_count = panel.shape[0]
+    n = panel.shape[0]
     if not select_chr:
-        sample_count = 2 * sample_count
+        n = 2 * n
     snps = vcf_file.fetch(str(chrom), start, end)
     count, anc_count = 0, 0
     allele_counts = list()
@@ -114,25 +114,20 @@ def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
                         allele_count += int(gt[0]) + int(gt[1])
                 #print(record.ID.ljust(11), record.POS, record.REF, record.INFO['AA'][0], record.ALT[0],
                  #         "%3d" % allele_count, "%.6f" % (allele_count / 5008), record.INFO['AF'])
-            if allele_count < sample_count:    #Some SNPs may not segregate in some subpopulations.
+            if allele_count < n:    #Some SNPs may not segregate in some subpopulations.
                 allele_counts.append(allele_count)
             else:
                 non_seg_snps.append(record.ID)
     #print('Total SNPs               =', count)
     #print('SNPs with valid ancestor =', anc_count)
-    print('Sample size              =', sample_count)
-    sfs = Counter(allele_counts)
-    del sfs[0]
-    print('Seg. sites in population =', sum(sfs.values()))
-    return sfs, sample_count, non_seg_snps
-
-
-def expand_sfs(n, sfs_c):
-    """Convert SFS in Counter form to array form."""
+    print('Sample size              =', n)
+    sfs_c = Counter(allele_counts)
+    del sfs_c[0]
+    print('Seg. sites in population =', sum(sfs_c.values()))
     sfs = np.zeros(n - 1, int)
     for i in sfs_c.keys():
         sfs[i - 1] = sfs_c[i]
-    return sfs
+    return sfs, n, non_seg_snps
 
 
 def create_heatmap_table(results, panel_all, statistic):
