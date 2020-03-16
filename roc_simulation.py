@@ -6,6 +6,8 @@ Calculates :math:`\\rho` and Tajima's D for neutral and non-neutral data simulat
 Simulations are conditioned either on :math:`\\theta` or on the number of segregating sites.
 The data is intended to be used to plot roc curves (see relevant Jupyter notebook).
 
+The script invokes a java script and must be run in a directory containing msms.jar file.
+
 A sample run statement is:
 
 nohup python3 /Users/helmutsimon/repos/NeutralityTest/roc_simulation.py 2s00a 10 0 -t 10 -sho 2 -sf 1e-2  > rs_2s00a.txt &
