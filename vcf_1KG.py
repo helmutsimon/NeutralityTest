@@ -89,6 +89,7 @@ def print_heatmap_pdf(pdfname, heat_table, colors, label, vmin, vmax, fname):
         d['Author'] = 'H. Simon'
         d['Subject'] = 'Datafile: ' + fname
         d['CreationDate'] = datetime.datetime.today()
+        pdf.savefig(fig, orientation='landscape')
     return fig
 
 
