@@ -92,9 +92,6 @@ def run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, SAA, SaA, 
         demographic_hist.print_history()
         sys.stdout.flush()
 
-    sfs_list, trs, taj_D = list(), list(), list()
-    not_enough = 0
-
     # Build the MSMS command line, conditioning either on theta or seg_sites and including selection if required.
     msms_cmd = ["java", "-jar", "msms.jar", str(n), str(reps), "-N", str(pop_size)] + events_commands
     if growth_rate:
@@ -115,9 +112,19 @@ def run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, SAA, SaA, 
     if recombination_rate:
         msms_cmd = msms_cmd + ["-r", str(recombination_rate)]
     print(msms_cmd)
-
-    # Run MSMS command and process output by line (each correspoding to a single simulation)
+    # Run MSMS command and return output.
     msms_out = subprocess.check_output(msms_cmd)
+    return(msms_out)
+
+
+def process_simulation_output(msms_out, variates0, variates1, reps):
+    """
+    Process out line by by line (each line corresponding to a single simulation).
+    We use a common set of variates for all repeatsof test_neutrality.
+
+    """
+    sfs_list, trs, taj_D = list(), list(), list()
+    not_enough = 0
     ms_lines = msms_out.splitlines()
     variant_array = list()
     for line in ms_lines[6:]:
@@ -134,7 +141,7 @@ def run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, SAA, SaA, 
                 continue
             sfs = compute_sfs(variant_array)
             sfs_list.append(sfs)
-            tr = selectiontest.test_neutrality(sfs, reps=reps)
+            tr = selectiontest.test_neutrality(sfs, variates0=variates0, variates1=variates1, reps=reps)
             if np.isnan(tr):
                 continue
             assert not np.isinf(tr), 'tr inf ' + str(tr)
@@ -158,10 +165,10 @@ def run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, SAA, SaA, 
 @click.option('-she', '--she', type=float, default=None)
 @click.option('-sf', '--sf', type=float, default=None)
 @click.option('-e', '--events_file', default=None)
-@click.option('-r', '--recombination_rate', default=0, type=float)
+@click.option('-r', '--recomb_rate', default=0, type=float)
 @click.option('-d', '--dir', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
-def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf, events_file, recombination_rate, dir):
+def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf, events_file, recomb_rate, dir):
     start_time = time()
     np.set_printoptions(precision=3)                #
     if not os.path.exists(dir):
@@ -186,8 +193,10 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
     results_false = pd.DataFrame()
     results_true = pd.DataFrame()
     print('Neutral population')
-    trs, taj_D, sfs_list = \
-        run_simulations(reps, pop_size, n, theta, seg_sites, 0, None, None, None, None, recombination_rate)
+    msms_out = run_simulations(reps, pop_size, n, theta, seg_sites, 0, None, None, None, None, recomb_rate)
+    variates0 = selectiontest.sample_wf_distribution(n, reps)
+    variates1 = selectiontest.sample_uniform_distribution(n, reps)
+    trs, taj_D, sfs_list = process_simulation_output(msms_out, variates0, variates1, reps)
     results_false['bayes'] = trs
     results_false['taj'] = taj_D
     sfs_list = np.array(sfs_list)
@@ -199,8 +208,10 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs constant population'.ljust(50))
 
     print('Non-neutral population')
-    trs, taj_D, sfs_list = \
-        run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, sho, she, sf, events_file, recombination_rate)
+    msms_out = run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, sho, she, sf, events_file, recomb_rate)
+    variates0 = selectiontest.sample_wf_distribution(n, reps)
+    variates1 = selectiontest.sample_uniform_distribution(n, reps)
+    trs, taj_D, sfs_list = process_simulation_output(msms_out, variates0, variates1, reps)
     results_true['bayes'] = trs
     results_true['taj'] = taj_D
     sfs_list = np.array(sfs_list)
