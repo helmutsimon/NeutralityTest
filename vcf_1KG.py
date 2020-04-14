@@ -72,7 +72,7 @@ def create_heatmap_table(results, panel_all, statistic):
     return heat_table
 
 
-def print_heatmap_pdf(pdfname, heat_table, colors, label, vmin, vmax, fname):
+def print_heatmap_pdf(pdfname, heat_table, colors, vmin, vmax, label, savepdf=True, properties=dict()):
     """
     Print heatmap as pdf.
 
@@ -85,11 +85,10 @@ def print_heatmap_pdf(pdfname, heat_table, colors, label, vmin, vmax, fname):
         ax.set_xlabel('Segment (GRCh37 coordinates)')
         ax.set_ylabel('Population')
         d = pdf.infodict()
-        d['Title'] = 'Selection heatmap for chromosome 2q11.1 ' + label
-        d['Author'] = 'H. Simon'
-        d['Subject'] = 'Datafile: ' + fname
-        d['CreationDate'] = datetime.datetime.today()
-        pdf.savefig(fig, orientation='landscape')
+        for key in properties:
+            d[key] = properties[key]
+        if savepdf:
+            pdf.savefig(fig, orientation='landscape')
     return fig
 
 
