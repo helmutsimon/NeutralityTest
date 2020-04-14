@@ -31,7 +31,10 @@ LOGGER = CachingLogger(create_dir=True)
 
 
 def compute_sfs(variant_array):
-    """Compute the site frequency spectrum from a variant array output by MSMS."""
+    """
+    Compute the site frequency spectrum from a variant array output by MSMS.
+
+    """
     n = variant_array.shape[1]
     occurrences = np.sum(variant_array, axis=1)
     sfs = Counter(occurrences)
@@ -40,10 +43,13 @@ def compute_sfs(variant_array):
 
 
 def read_demography_file(filename, pop_size):
-    """Read demographic history file and translate into MSMS commands. The file uses absolute
+    """
+    Read demographic history file and translate into MSMS commands. The file uses absolute
     population size and exponential growth rate per generation. These are scaled by 4N_0 (pop_size)
     for MSMS. The input file format used is compatible with msprime and msprime functions are
-    used to print a description of the demographic history."""
+    used to print a description of the demographic history.
+
+    """
     if filename is None:
         return list()
     if isinstance(filename, str):
@@ -119,12 +125,12 @@ def run_simulations(reps, pop_size, n, theta, seg_sites, growth_rate, SAA, SaA, 
 
 def process_simulation_output(msms_out, variates0, variates1, reps):
     """
-    Process out line by by line (each line corresponding to a single simulation).
-    We use a common set of variates for all repeatsof test_neutrality.
+    Process MSMS output line by by line (each line corresponding to a single simulation).
+    We use a common set of variates for all calls to test_neutrality.
 
     """
     sfs_list, trs, taj_D = list(), list(), list()
-    not_enough = 0
+    not_enough, err_nan = 0, 0
     ms_lines = msms_out.splitlines()
     variant_array = list()
     for line in ms_lines[6:]:
@@ -143,13 +149,13 @@ def process_simulation_output(msms_out, variates0, variates1, reps):
             sfs_list.append(sfs)
             tr = selectiontest.test_neutrality(sfs, variates0=variates0, variates1=variates1, reps=reps)
             if np.isnan(tr):
-                continue
-            assert not np.isinf(tr), 'tr inf ' + str(tr)
-            trs.append(tr)
+                err_nan += 1
+            else:
+                trs.append(tr)
             taj_D.append(selectiontest.calculate_D(sfs))
             variant_array = list()
-    if not_enough:
-        print('# skipped for insufficient segregating sites: ', not_enough)
+    LOGGER.log_message(str(not_enough), label='# Discarded for insufficient segregating sites: ')
+    LOGGER.log_message(str(err_nan),    label='# Discarded for returning nan value for rho :   ')
     return trs, taj_D, sfs_list
 
 
@@ -158,7 +164,7 @@ def process_simulation_output(msms_out, variates0, variates1, reps):
 @click.argument('n', type=int)
 @click.argument('growth_rate', type=float)
 @click.option('-seg', 'seg_sites', type=int, default=None)
-@click.option('-t', 'theta', type=int, default=None)
+@click.option('-t', 'theta', type=float, default=None)
 @click.option('-N', '--pop_size', type=float, default=100000)
 @click.option('-rep', '--reps', type=int, default=10000)
 @click.option('-sho', '--sho', type=float, default=None)
@@ -180,25 +186,21 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
         LOGGER.log_message(str(os.environ['CONDA_DEFAULT_ENV']), label="Conda environment.".ljust(17))
     except KeyError:
         pass
-    LOGGER.log_message('Name = ' + np.__name__ + ', version = ' + np.__version__,
-                       label="Imported module".ljust(30))
-    LOGGER.log_message('Name = ' + pd.__name__ + ', version = ' + pd.__version__,
-                       label="Imported module".ljust(30))
-    LOGGER.log_message('Name = ' + scipy.__name__ + ', version = ' + scipy.__version__,
-                       label="Imported module".ljust(30))
-    LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__,
-                       label="Imported module".ljust(30))
+    label = "Imported module".ljust(30)
+    LOGGER.log_message('Name = ' + np.__name__ + ', version = ' + np.__version__, label=label)
+    LOGGER.log_message('Name = ' + pd.__name__ + ', version = ' + pd.__version__, label=label)
+    LOGGER.log_message('Name = ' + scipy.__name__ + ', version = ' + scipy.__version__, label=label)
+    LOGGER.log_message('Name = ' + msprime.__name__ + ', version = ' + msprime.__version__, label=label)
+    LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
+    results = dict()
 
-    # Run the simulations
-    results_false = pd.DataFrame()
-    results_true = pd.DataFrame()
     print('Neutral population')
     msms_out = run_simulations(reps, pop_size, n, theta, seg_sites, 0, None, None, None, None, recomb_rate)
     variates0 = selectiontest.sample_wf_distribution(n, reps)
     variates1 = selectiontest.sample_uniform_distribution(n, reps)
     trs, taj_D, sfs_list = process_simulation_output(msms_out, variates0, variates1, reps)
-    results_false['bayes'] = trs
-    results_false['taj'] = taj_D
+    results['rho_false'] = trs
+    results['taj_false'] = taj_D
     sfs_list = np.array(sfs_list)
     outfile_name = 'data/sfs_neutral_' + job_no + '.pklz'
     with gzip.open(outfile_name, 'wb') as outfile:
@@ -212,8 +214,8 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
     variates0 = selectiontest.sample_wf_distribution(n, reps)
     variates1 = selectiontest.sample_uniform_distribution(n, reps)
     trs, taj_D, sfs_list = process_simulation_output(msms_out, variates0, variates1, reps)
-    results_true['bayes'] = trs
-    results_true['taj'] = taj_D
+    results['rho_true'] = trs
+    results['taj_true'] = taj_D
     sfs_list = np.array(sfs_list)
     outfile_name = 'data/sfs_non_neutral_' + job_no + '.pklz'
     with gzip.open(outfile_name, 'wb') as outfile:
@@ -222,13 +224,9 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
     LOGGER.output_file(outfile.name)
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs non-neutral population'.ljust(50))
 
-    fname = 'data/roc_data_false_' + job_no + '.csv'
-    results_false.to_csv(fname)
-    outfile = open(fname, 'r')
-    LOGGER.output_file(outfile.name)
-    outfile.close()
-    fname = 'data/roc_data_true_' + job_no + '.csv'
-    results_true.to_csv(fname)
+    fname = 'data/roc_data_' + job_no + '.pklz'
+    with gzip.open(fname, 'wb') as outfile:
+        pickle.dump(results, outfile)
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
     outfile.close()
