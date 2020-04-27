@@ -172,14 +172,14 @@ def process_simulation_output(msms_out, variates0, variates1, reps):
 @click.option('-sf', '--sf', type=float, default=None)
 @click.option('-e', '--events_file', default=None)
 @click.option('-r', '--recomb_rate', default=0, type=float)
-@click.option('-d', '--dir', default='data', type=click.Path(),
+@click.option('-d', '--dirx', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
-def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf, events_file, recomb_rate, dir):
+def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf, events_file, recomb_rate, dirx):
     start_time = time()
     np.set_printoptions(precision=3)                #
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    LOGGER.log_file_path = dir + "/" + str(os.path.basename(__file__)) + '_' + job_no + ".log"
+    if not os.path.exists(dirx):
+        os.makedirs(dirx)
+    LOGGER.log_file_path = dirx + "/" + str(os.path.basename(__file__)) + '_' + job_no + ".log"
     LOGGER.log_args()
     LOGGER.log_message(get_file_hexdigest(__file__), label="Hex digest of script.".ljust(17))
     try:
@@ -217,14 +217,14 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
     results['rho_true'] = trs
     results['taj_true'] = taj_D
     sfs_list = np.array(sfs_list)
-    outfile_name = 'data/sfs_non_neutral_' + job_no + '.pklz'
+    outfile_name = dirx + '/sfs_non_neutral_' + job_no + '.pklz'
     with gzip.open(outfile_name, 'wb') as outfile:
         pickle.dump(sfs_list, outfile)
     outfile = open(outfile_name, 'r')
     LOGGER.output_file(outfile.name)
     LOGGER.log_message(str(np.mean(sfs_list, axis=0)), label='Mean sfs non-neutral population'.ljust(50))
 
-    fname = 'data/roc_data_' + job_no + '.pklz'
+    fname = dirx + '/roc_data_' + job_no + '.pklz'
     with gzip.open(fname, 'wb') as outfile:
         pickle.dump(results, outfile)
     outfile = open(fname, 'r')
