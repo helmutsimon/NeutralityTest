@@ -9,7 +9,7 @@ The following is a brief summary of scripts and notebooks in this repository.
 
 *roc_simulation.py* creates synthetic data for a range of scenarios using the MSMS program (*Ewing, G. and Hermisson, J. (2010). MSMS: a coalescent simulation program including recombination, demographic structure and selection at a single locus. Bioinformatics, 26(16):2064–2065*). It  calculates &rho; and Tajima's D for these data sets. This data can be used to generate receiver operating characteristic (ROC) curves to compare the performance of these two statistics. MSMS is Java code, which we call from within a Python script.
 
-*plot_roc_curves.ipynb* plots output from *roc_simulation.py*.
+*Plot_roc_curves.ipynb* plots output from *roc_simulation.py*.
 
 *generate_calibration_table.ipynb* generates a table of calibration values used in the paper.
 
