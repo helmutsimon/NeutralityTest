@@ -121,8 +121,8 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
                         (pop_size, genome_length, params, n, l, seed, variates0, variates1) for seed in seeds)
     sfs_list = [item[0] for item in fp_results]
     tmrcas = [item[3] for item in fp_results]
-    results['rho_true'] = [item[2] for item in fp_results]
-    results['taj_true'] = [item[3] for item in fp_results]
+    results['rho_true'] = [item[1] for item in fp_results]
+    results['taj_true'] = [item[2] for item in fp_results]
     LOGGER.log_message("%.2f" % np.mean(tmrcas), label="Mean TMRCA".ljust(50))
     if 4 * np.mean(tmrcas) < l:
         print("Insufficient generations for TMRCA = ", np.mean(tmrcas))
@@ -133,7 +133,7 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     print(sfs_mean)
     seg_site_mean = np.mean(sfs_df, axis=0).to_numpy().sum()
     LOGGER.log_message("%.2f" % seg_site_mean, label="Mean Number of segregating sites".ljust(50))
-    theta_est = seg_site_mean / sum(1 / np.arange(1, 20))
+    theta_est = seg_site_mean / sum(1 / np.arange(1, seg_site_mean))
     fname = dirx + '/fwdpy_bgrdsel_sfs_' + job_no + '.csv'
     sfs_df.to_csv(fname)
     outfile = open(fname, 'r')
@@ -148,6 +148,8 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
 
     msms_out = roc_simulation.run_simulations(nreps, pop_size, n, theta_est, None, 0, None, None, None, None, recomb_rate)
     trs, taj_D, sfs_list = roc_simulation.process_simulation_output(msms_out, variates0, variates1, nreps)
+    print('Mean SFS for neutral simulation')
+    print(np.mean(sfs_df, axis=0).to_numpy())
     results['rho_false'] = trs
     results['taj_false'] = taj_D
     fname = dirx + '/fp_roc_data_' + job_no + '.pklz'
