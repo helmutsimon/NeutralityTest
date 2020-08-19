@@ -125,7 +125,7 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     results['taj_true'] = [item[2] for item in fp_results]
     LOGGER.log_message("%.2f" % np.mean(tmrcas), label="Mean TMRCA".ljust(50))
     if 4 * np.mean(tmrcas) < l:
-        print("Insufficient generations for TMRCA = ", np.mean(tmrcas))
+        print("Insufficient generations for TMRCA = ", np.mean(tmrcas), l)
         sys.stdout.flush()
     sfs_df = pd.DataFrame(sfs_list)
     sfs_mean = np.mean(sfs_df, axis=0).to_numpy()
@@ -149,7 +149,7 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     msms_out = roc_simulation.run_simulations(nreps, pop_size, n, theta_est, None, 0, None, None, None, None, recomb_rate)
     trs, taj_D, sfs_list = roc_simulation.process_simulation_output(msms_out, variates0, variates1, nreps)
     print('Mean SFS for neutral simulation')
-    print(np.mean(sfs_df, axis=0).to_numpy())
+    print(np.mean(sfs_list, axis=0).to_numpy())
     results['rho_false'] = trs
     results['taj_false'] = taj_D
     fname = dirx + '/fp_roc_data_' + job_no + '.pklz'
