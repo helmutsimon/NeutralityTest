@@ -39,25 +39,26 @@ def tmrca_from_pop(pop, l):
     return l - min([x for x in b.keys() if b[x] == 1])
 
 
-def evolve_sfs(N, genome_length, params, nsam, l, seed, variates0, variates1):
+def evolve_sfs(N, genome_length, params, nsam, l, seed, variates0=None, variates1=None):
     """
     Evolve population with neutral mutation rate passed in parameters. Return SFS of random sample of
     specified size.
     """
     pop = fwdpy11.DiploidPopulation(N, genome_length)    # Initializes a population
     rng = fwdpy11.GSLrng(seed)
-    # Evolve population, pruning every 50 steps
-    fwdpy11.evolvets(rng, pop, params, 100, suppress_table_indexing=True)   #suppress_... because no recombination?
+    # Evolve population, pruning every 200 steps
+    fwdpy11.evolvets(rng, pop, params, 200, suppress_table_indexing=True)   #suppress_.. because no recombination?
     np.random.seed(seed)
     sample_ix = np.random.choice(N, nsam, replace=False)
     alive_nodes = pop.alive_nodes                                           # the present-day nodes
     sample = [alive_nodes[sample_ix]]
     sfs = pop.tables.fs(sample).compressed() #ignores 1st and last entries (mutations not in sample and fixed)
+    sfs_n = pop.tables.fs(sample, include_selected=False).compressed()
+    sfs_s = pop.tables.fs(sample, include_neutral=False).compressed()
     rho = selectiontest.test_neutrality(sfs, variates0, variates1)
     tajD = selectiontest.calculate_D(sfs)
     tmrca = tmrca_from_pop(pop, l)
-    return (sfs, rho, tajD, tmrca)
-
+    return (sfs, rho, tajD, tmrca, sfs_n, sfs_s)
 
 
 @click.command()
@@ -120,6 +121,8 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     fp_results = Parallel(n_jobs=n_jobs)(delayed(evolve_sfs)
                         (pop_size, genome_length, params, n, l, seed, variates0, variates1) for seed in seeds)
     sfs_list = [item[0] for item in fp_results]
+    sfs_n = [item[4] for item in fp_results]
+    sfs_s = [item[5] for item in fp_results]
     tmrcas = [item[3] for item in fp_results]
     results['rho_true'] = [item[1] for item in fp_results]
     results['taj_true'] = [item[2] for item in fp_results]
@@ -140,12 +143,8 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     LOGGER.output_file(outfile.name)
     outfile.close()
     wf_sfs = theta / np.arange(1, n + 1)
-    l1 = np.mean(sfs_df, axis=0)
-    l2 = wf_sfs * np.exp(-lam)
-    l3 = wf_sfs
-    for x, y, z in zip(l1, l2, l3):
-        print("%.3f" % x, "%.3f" % y, "%.3f" % z)
-
+    for x, y, z, w in zip(np.mean(sfs_list, axis=0), np.mean(sfs_n, axis=0), np.mean(sfs_s, axis=0), wf_sfs):
+        print("%.3f" % x, "%.3f" % y, "%.3f" % z, "%.3f" % w)
     msms_out = roc_simulation.run_simulations(nreps, pop_size, n, theta_est, None, 0, None, None, None, None, recomb_rate)
     trs, taj_D, sfs_list = roc_simulation.process_simulation_output(msms_out, variates0, variates1, nreps)
     print('Mean SFS for neutral simulation')
