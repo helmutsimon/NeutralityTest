@@ -147,8 +147,6 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
         print("%.3f" % x, "%.3f" % y, "%.3f" % z, "%.3f" % w)
     msms_out = roc_simulation.run_simulations(nreps, pop_size, n, theta_est, None, 0, None, None, None, None, recomb_rate)
     trs, taj_D, sfs_list = roc_simulation.process_simulation_output(msms_out, variates0, variates1, nreps)
-    print('Mean SFS for neutral simulation')
-    print(np.mean(sfs_list, axis=0).to_numpy())
     results['rho_false'] = trs
     results['taj_false'] = taj_D
     fname = dirx + '/fp_roc_data_' + job_no + '.pklz'
