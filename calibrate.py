@@ -119,6 +119,11 @@ def compute_threshold(n, seg_sites, njobs, reps=10000, fpr=0.02):
     sfs_array = generate_sfs_array(n, seg_sites, reps)
     results = Parallel(n_jobs=njobs)(delayed(test_neutrality)(sfs, variates0, variates1, reps=reps) \
                                  for sfs in sfs_array)
+    results = np.array(results)
+    print(np.sum(np.isneginf(results)))
+    print(np.sum(np.isinf(results)))
+    print(np.sum(np.isnan(results)))
+    sys.stdout.flush()
     results = results[~np.isnan(results)]
     results = np.sort(results)
     return results[int(len(results) * (1 - fpr))]
@@ -130,7 +135,7 @@ def compute_threshold(n, seg_sites, njobs, reps=10000, fpr=0.02):
 @click.option('-f', '--fpr', default=0.02, help="False positive rate. Default = 0.02")
 @click.option('-r', '--reps', default=10000, help="Number of repetitions")
 @click.option('-j', '--njobs', default=10, help="Number of repetitions")
-@click.option('-p', '--dps', default=50, help="Number of repetitions")
+@click.option('-p', '--dps', default=50, help="Number of decimal places for mpmath")
 @click.option('-d', '--dirx', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
 def main(job_no, seg_sites, sample_size_values, fpr, reps, njobs, dps, dirx):
