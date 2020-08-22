@@ -133,7 +133,7 @@ def compute_threshold(n, seg_sites, njobs, sreps=10000, wreps=10000, fpr=0.02):
 @click.argument('sample_size_values', nargs=-1, type=int)
 @click.option('-f', '--fpr', default=0.02, help="False positive rate. Default = 0.02")
 @click.option('-sr', '--sreps', default=10000, help="Number of repetitions to generate sfs and uniform samples.")
-@click.option('-wr', '--dreps', default=10000, help="Number of repetitions for WF samples used in selectiontest.")
+@click.option('-wr', '--wreps', default=10000, help="Number of repetitions for WF samples used in selectiontest.")
 @click.option('-j', '--njobs', default=10, help="Number of repetitions")
 @click.option('-p', '--dps', default=50, help="Number of decimal places for mpmath")
 @click.option('-d', '--dirx', default='data', type=click.Path(),
