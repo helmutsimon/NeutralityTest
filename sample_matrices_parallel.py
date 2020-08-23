@@ -30,7 +30,7 @@ def sample_matrices3(n, size, seed):
 
 
 def sample_matrices_pllel(n, size, njobs):
-    seeds = np.random.choice(njobs, 2 * njobs, replace=False)
+    seeds = np.random.choice(2 * njobs, njobs, replace=False)
     results = Parallel(n_jobs=njobs)(delayed(sample_matrices3)(n, size, seed) for seed in seeds)
     counts, mxs = Counter(), Counter()
     for pair in results:
