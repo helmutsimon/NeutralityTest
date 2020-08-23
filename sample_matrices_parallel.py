@@ -14,9 +14,10 @@ from scitrack import CachingLogger, get_file_hexdigest
 LOGGER = CachingLogger(create_dir=True)
 
 
-def sample_matrices3(n, size):
+def sample_matrices3(n, size, seed):
+    np.random.seed(seed)
     counts, mxs = Counter(), Counter()
-    for i in range(size):
+    for j in range(size):
         f = list()
         for i in range(1, n):
             f.append(np.random.choice(i))
@@ -29,7 +30,8 @@ def sample_matrices3(n, size):
 
 
 def sample_matrices_pllel(n, size, njobs):
-    results = Parallel(n_jobs=njobs)(delayed(sample_matrices3)(n, size) for i in range(1))
+    seeds = np.random.choice(njobs, 2 * njobs, replace=False)
+    results = Parallel(n_jobs=njobs)(delayed(sample_matrices3)(n, size, seed) for seed in seeds)
     counts, mxs = Counter(), Counter()
     for pair in results:
         mxs = {**mxs, **pair[0]}
@@ -61,7 +63,7 @@ def main(job_no, n, size, njobs, dirx):
     start_time = time()
     mxs, counts = sample_matrices_pllel(n, size, njobs)
     results = [mxs, counts]
-    fname = dirx + "/matrix_samples_" + job_no + ".csv"
+    fname = dirx + "/matrix_samples_" + job_no + ".pklz"
     with gzip.open(fname, 'wb') as outfile:
         pickle.dump(results, outfile)
     outfile = open(fname, 'r')
