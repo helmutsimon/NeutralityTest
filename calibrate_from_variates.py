@@ -104,7 +104,7 @@ def main(job_no, seg_sites_values, fname, sample_size, fpr, sreps, dirx):
 
     start_time = time()
     thresholds = list()
-    fname = dirx + '/' + fname + '.csv'
+    fname = dirx + '/' + fname
     #variates0 = np.genfromtxt(fname, delimiter=',')
     infile = open(fname, 'r')
     LOGGER.input_file(infile.name)
