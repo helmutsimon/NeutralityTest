@@ -65,6 +65,7 @@ def sample_wf_distribution(n, reps, seed):
         for j in range(counts[key]):
             mx = matrices[key]
             variate = (mx.T).dot(rel_branch_lengths[rbl_count])
+            #variate = list(variate)       #
             rbl_count += 1
             err = 1 - np.sum(variate)
             variate[np.argmax(variate)] += err
@@ -77,46 +78,6 @@ def sample_WF_pllel(n, size, njobs):
     results = Parallel(n_jobs=njobs)(delayed(sample_wf_distribution)(n, size, seed) for seed in seeds)
     return np.vstack(results)
 
-
-def sample_matrices2(n, size):
-    """
-        Sample tree matrices for sample size n according to ERM measure.
-
-        Parameters
-        ----------
-        n: int
-            Sample size
-        size: int
-            Number of samples.
-
-        Returns
-        -------
-        list
-            List containing 2 elements. The first is a dictionary with key n, containing a list of matrices, each
-            occurring once only. The second is also a dictionary with key, n containg a list of the nuimber of
-            instances of each matrix in the sample.
-
-        """
-    c = Counter()
-    count, hashes, matrices = 0, list(), list()
-    while count < size:
-        count += 1
-        f = list()
-        for i in range(1, n):
-            f.append(np.random.choice(i))
-        f = f[::-1]
-        mx = selectiontest.derive_tree_matrix(f)
-        hashmx = mx.tostring()
-        if hashmx not in hashes:
-            matrices.append(mx)
-            hashes.append(hashmx)
-        c[hashmx] += 1
-    counts = [c[hash] for hash in hashes]
-    counts = np.array(counts)
-    assert len(counts) == len(matrices), 'Counts do not match matrices.'
-    assert np.sum(counts) == size, 'Incorrect number of matrices selected.'
-    matrix_file = [{n: matrices}, {n: counts}]
-    return matrix_file
 
 def compute_threshold(n, seg_sites, njobs, sreps=10000, wreps=10000, fpr=0.02):
     """
@@ -148,14 +109,25 @@ def compute_threshold(n, seg_sites, njobs, sreps=10000, wreps=10000, fpr=0.02):
 
     #variates0 = selectiontest.sample_wf_distribution(n, wreps)
     variates0 = sample_WF_pllel(n, wreps, njobs)
-    print('wf complete')
     sys.stdout.flush()
     variates1 = selectiontest.sample_uniform_distribution(n, sreps)
     sfs_array = selectiontest.generate_sfs_array(n, seg_sites, sreps)
     print('sfs simulation complete')
     sys.stdout.flush()
-    results = Parallel(n_jobs=njobs)(delayed(selectiontest.test_neutrality)(sfs, variates0, variates1) \
-                                 for sfs in sfs_array)
+    num_wf_vars = variates0.shape[0]
+    results = list()
+    for sfs in sfs_array:
+        a = sfs > 0
+        b = variates0[:, a] > 0
+        c = np.all(b > 0, axis=1)
+        compat_vars = variates0[c, :]
+        if compat_vars.shape[0] == 0:
+            h0 = 0
+        else:
+            h0 = np.sum(selectiontest.multinomial_pmf(sfs, seg_sites, compat_vars)) / num_wf_vars
+        h1 = np.mean(selectiontest.multinomial_pmf(sfs, seg_sites, variates1))
+        rho = np.log10(h1) - np.log10(h0)
+        results.append(rho)
     print('selectiontest complete')
     sys.stdout.flush()
     results = np.array(results)
@@ -174,7 +146,7 @@ def compute_threshold(n, seg_sites, njobs, sreps=10000, wreps=10000, fpr=0.02):
 @click.option('-f', '--fpr', default=0.02, help="False positive rate. Default = 0.02")
 @click.option('-sr', '--sreps', default=10000, help="Number of repetitions to generate sfs and uniform samples.")
 @click.option('-wr', '--wreps', default=10000, help="Number of repetitions for WF samples used in selectiontest.")
-@click.option('-j', '--njobs', default=10, help="Number of repetitions")
+@click.option('-j', '--njobs', default=10, help="Number of parallel jobs.")
 @click.option('-d', '--dirx', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
 def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs, dirx):
