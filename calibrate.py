@@ -27,7 +27,7 @@ def sample_matrices3(n, size, seed):
             f.append(np.random.choice(i))
         f = f[::-1]
         mx = selectiontest.derive_tree_matrix(f)
-        hashmx = mx.tostring()
+        hashmx = mx.tobytes()
         mxs[hashmx] = mx
         counts[hashmx] += 1
     return mxs, counts
@@ -196,9 +196,10 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
     start_time = time()
     thresholds, rows = list(), list()
     for sn in seg_sites_values:
+        if sn == 0:
+            break
         for n in sample_size_values:
-            if sn == 0:
-                break
+            print(sn, n)
             thr = compute_threshold(n, sn, njobs, sreps=sreps, wreps=wreps,fpr=fpr)  # don't need last 2 params
             duration = time() - start_time
             print("%.2f" % (duration / 60.), "%4d" % n, "%3d" % sn, "%.3f" % thr)
