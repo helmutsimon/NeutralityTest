@@ -7,6 +7,7 @@ import os, sys
 import numpy as np
 import pandas as pd
 from collections import Counter
+from scipy.special import binom
 from selectiontest import selectiontest
 from joblib import Parallel, delayed
 from time import time
