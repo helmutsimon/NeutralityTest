@@ -2,7 +2,7 @@
 
 """ Calibrate the neutrality test by calculating a threshold for a given false positive
     rate (default is 0.02) against the Wright-Fisher model.
-    This method reads WF variates line by line rom csv file in order that large numbers opf variates can be used."""
+    This method reads WF variates line by line from csv file in order that large numbers of variates can be used."""
 
 import os, sys
 import numpy as np
@@ -70,14 +70,6 @@ def compute_threshold(n, seg_sites, fname, njobs, sreps=10000, fpr=0.02):
     print('sfs simulation complete')
     sys.stdout.flush()
     results = Parallel(n_jobs=njobs)(delayed(calculate_rho)(sfs, seg_sites, fname, variates1) for sfs in sfs_array)
-    # results = list()
-    # for sfs in sfs_array:
-    #     infile = open(fname)
-    #     h0 = get_WF_likelihood(sfs, infile)
-    #     h1 = np.mean(selectiontest.multinomial_pmf(sfs, seg_sites, variates1))
-    #     rho = np.log10(h1) - np.log10(h0)
-    #     results.append(rho)
-    print('selectiontest complete')
     sys.stdout.flush()
     results = np.array(results)
     print(np.sum(np.isneginf(results)))
