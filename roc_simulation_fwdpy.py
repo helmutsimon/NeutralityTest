@@ -11,7 +11,6 @@ nohup python3 /Users/helmutsimon/repos/NeutralityTest/roc_simulation_fwdpy.py te
 
 import pandas as pd
 import os, sys
-import gzip, pickle
 import pybind11
 from collections import Counter
 from selectiontest import selectiontest
@@ -28,7 +27,6 @@ abspath = os.path.abspath(__file__)
 projdir = "/".join(abspath.split("/")[:-1])
 sys.path.append(projdir)
 
-import roc_simulation
 
 LOGGER = CachingLogger(create_dir=True)
 
@@ -136,7 +134,7 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     print(sfs_mean)
     seg_site_mean = np.mean(sfs_df, axis=0).to_numpy().sum()
     LOGGER.log_message("%.2f" % seg_site_mean, label="Mean Number of segregating sites".ljust(50))
-    theta_est = seg_site_mean / sum(1 / np.arange(1, seg_site_mean))
+    #theta_est = seg_site_mean / sum(1 / np.arange(1, seg_site_mean))
     fname = dirx + '/fwdpy_bgrdsel_sfs_' + job_no + '.csv'
     sfs_df.to_csv(fname)
     outfile = open(fname, 'r')
@@ -145,16 +143,6 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     wf_sfs = theta / np.arange(1, n + 1)
     for x, y, z, w in zip(np.mean(sfs_list, axis=0), np.mean(sfs_n, axis=0), np.mean(sfs_s, axis=0), wf_sfs):
         print("%.3f" % x, "%.3f" % y, "%.3f" % z, "%.3f" % w)
-    msms_out = roc_simulation.run_simulations(nreps, pop_size, n, theta_est, None, 0, None, None, None, None, recomb_rate)
-    trs, taj_D, sfs_list = roc_simulation.process_simulation_output(msms_out, variates0, variates1, nreps)
-    results['rho_false'] = trs
-    results['taj_false'] = taj_D
-    fname = dirx + '/fp_roc_data_' + job_no + '.pklz'
-    with gzip.open(fname, 'wb') as outfile:
-        pickle.dump(results, outfile)
-    outfile = open(fname, 'r')
-    LOGGER.output_file(outfile.name)
-    outfile.close()
 
     duration = time() - start_time
     LOGGER.log_message("%.2f" % (duration / 60.), label="Run duration (minutes)".ljust(50))
