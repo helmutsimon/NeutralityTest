@@ -10,6 +10,7 @@ nohup python3 /Users/helmutsimon/repos/NeutralityTest/roc_simulation_fwdpy.py te
 """
 
 import pandas as pd
+import gzip, pickle
 import os, sys
 import pybind11
 from collections import Counter
@@ -137,6 +138,12 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     #theta_est = seg_site_mean / sum(1 / np.arange(1, seg_site_mean))
     fname = dirx + '/fwdpy_bgrdsel_sfs_' + job_no + '.csv'
     sfs_df.to_csv(fname)
+    outfile = open(fname, 'r')
+    LOGGER.output_file(outfile.name)
+    outfile.close()
+    fname = dirx + '/fp_roc_data_' + job_no + '.pklz'
+    with gzip.open(fname, 'wb') as outfile:
+        pickle.dump(results, outfile)
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
     outfile.close()
