@@ -165,8 +165,9 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
 
     start_time = time()
-    thresholds, rows = list(), list()
+    rows = list()
     for sn in seg_sites_values:
+        thresholds = list()
         if sn == 0:
             break
         for n in sample_size_values:
