@@ -65,7 +65,6 @@ def sample_wf_distribution(n, reps, seed):
         for j in range(counts[key]):
             mx = matrices[key]
             variate = (mx.T).dot(rel_branch_lengths[rbl_count])
-            #variate = list(variate)       #
             rbl_count += 1
             err = 1 - np.sum(variate)
             variate[np.argmax(variate)] += err
