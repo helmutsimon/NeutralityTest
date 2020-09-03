@@ -10,18 +10,30 @@ nohup python3 /Users/helmutsimon/repos/NeutralityTest/analyse_region_by_populati
 
 import os, sys
 from time import time
+import numpy as np
 from vcf import Reader  # https://pypi.org/project/PyVCF/
 from selectiontest import selectiontest
 import pandas as pd
 import click
 from scitrack import CachingLogger, get_file_hexdigest
 
-abspath = os.path.abspath(__file__)
-projdir = "/".join(abspath.split("/")[:-1])
-sys.path.append(projdir)
-import vcf_1KG
 
 LOGGER = CachingLogger(create_dir=True)
+
+
+def create_heatmap_table(results, panel_all, statistic):
+    """
+    Reformat data from format produced internally by analyse_region_by_population.py for seaborn heatmap.
+
+    """
+    panel2 = panel_all[['pop', 'super_pop']]
+    pop_tab = panel2.drop_duplicates(subset=['pop', 'super_pop'])
+    heat_table = results.pivot(index='pop', columns='segstart', values=statistic)
+    heat_table = heat_table.merge(pop_tab, on='pop')
+    heat_table = heat_table.sort_values(['super_pop'])
+    heat_table = heat_table.drop(columns='super_pop')
+    heat_table.set_index('pop', inplace=True)
+    return heat_table
 
 
 @click.command()
@@ -33,19 +45,21 @@ LOGGER = CachingLogger(create_dir=True)
 @click.argument('reps', type=int)
 @click.option('--demog/--no-demog', default=False,
               help='choose whether to implement non-neutral demographic history for European populations.')
-@click.option('-d', '--dir', default='data', type=click.Path(),
+@click.option('-d', '--dirx', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
-def main(job_no, chrom, start, interval, segments, reps, demog, dir):
+def main(job_no, chrom, start, interval, segments, reps, demog, dirx):
     start_time = time()
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    LOGGER.log_file_path = dir + "/" + str(os.path.basename(__file__)) + '_' + job_no + ".log"
+    if not os.path.exists(dirx):
+        os.makedirs(dirx)
+    LOGGER.log_file_path = dirx + "/" + str(os.path.basename(__file__)) + '_' + job_no + ".log"
     LOGGER.log_args()
     LOGGER.log_message(get_file_hexdigest(__file__), label="Hex digest of script.".ljust(17))
     try:
         LOGGER.log_message(str(os.environ['CONDA_DEFAULT_ENV']), label="Conda environment.".ljust(17))
     except KeyError:
         pass
+    LOGGER.log_message('Name = ' + np.__name__ + ', version = ' + np.__version__,
+                       label="Imported module".ljust(30))
     LOGGER.log_message('Name = ' + pd.__name__ + ', version = ' + pd.__version__,
                        label="Imported module".ljust(30))
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__,
@@ -82,7 +96,9 @@ def main(job_no, chrom, start, interval, segments, reps, demog, dir):
             variates = selectiontest.piecewise_constant_variates(n, timepoints, pop_sizes, reps)
             LOGGER.log_message(pop.ljust(30), label="Modified demographic history for population ")
         else:
-            variates = None
+            variates = np.empty((reps, n - 1), dtype=float)
+            for i, q in enumerate(selectiontest.sample_wf_distribution(n, reps)):
+                variates[i] = q
             LOGGER.log_message(pop.ljust(30), label="Neutral demographic history for population  ")
         for segment in range(segments):
             print('\nPopulation               =', pop)
@@ -90,10 +106,12 @@ def main(job_no, chrom, start, interval, segments, reps, demog, dir):
             seg_start = start + segment * interval
             print('Segment start            =', seg_start)
             seg_end = seg_start + interval
-            sfs, n2, non_seg_snps = vcf_1KG.get_sfs(vcf_file, panel, chrom, seg_start, seg_end, pop)
+            sfs, n2, non_seg_snps = selectiontest.vcf2sfs(vcf_file, panel, chrom, seg_start, seg_end)
             assert n == n2 , 'Sample size mismatch for ' + pop
             tajd = selectiontest.calculate_D(sfs)
             print('Tajimas D                =', tajd)
+            print(sfs)
+            print(type(sfs))
             rho = selectiontest.test_neutrality(sfs, variates0=variates)  # variates parameter only if required
             print('\u03C1                        =', rho)
             if len(non_seg_snps) > 0:
@@ -102,19 +120,19 @@ def main(job_no, chrom, start, interval, segments, reps, demog, dir):
             rows.append(row)
             sys.stdout.flush()
     results = pd.DataFrame(rows, columns=['pop', 'segstart', 'tajd', 'rlnt'])
-    fname = dir + '/chr' + str(chrom) + 'gene_cluster_results' + job_no + '.csv'
+    fname = dirx + '/chr' + str(chrom) + 'gene_cluster_results' + job_no + '.csv'
     results.to_csv(fname, sep=',')
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
     outfile.close()
-    heatmap_table_r = vcf_1KG.create_heatmap_table(results, panel_select, 'rlnt')
-    fname = dir + '/chr' + str(chrom) + '_heat_table_rlnt' + job_no + '.csv'
+    heatmap_table_r = create_heatmap_table(results, panel_select, 'rlnt')
+    fname = dirx + '/chr' + str(chrom) + '_heat_table_rlnt' + job_no + '.csv'
     heatmap_table_r.to_csv(fname, sep=',')
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
     outfile.close()
-    heatmap_table_t = vcf_1KG.create_heatmap_table(results, panel_select, 'tajd')
-    fname = dir + '/chr' + str(chrom) + '_heat_table_tajd' + job_no + '.csv'
+    heatmap_table_t = create_heatmap_table(results, panel_select, 'tajd')
+    fname = dirx + '/chr' + str(chrom) + '_heat_table_tajd' + job_no + '.csv'
     heatmap_table_t.to_csv(fname, sep=',')
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
