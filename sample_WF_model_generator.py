@@ -7,10 +7,11 @@ the counts of each matrix in the sample.
 """
 
 import numpy as np
-import os
-import gzip, pickle
+import os, sys
+import csv
+#import gzip, pickle
 from scipy.special import binom
-from collections import Counter, defaultdict
+#from collections import Counter, defaultdict
 from joblib import Parallel, delayed
 from selectiontest import selectiontest
 from time import time
@@ -21,22 +22,26 @@ from scitrack import CachingLogger, get_file_hexdigest
 LOGGER = CachingLogger(create_dir=True)
 
 
-def sample_matrices3(n, size, seed):
-    np.random.seed(seed)
-    counts, mxs = Counter(), Counter()
-    for j in range(size):
+def sample_matrix(n, reps):
+    for i in range(reps):
         f = list()
         for i in range(1, n):
             f.append(np.random.choice(i))
         f = f[::-1]
         mx = selectiontest.derive_tree_matrix(f)
-        hashmx = mx.tostring()
-        mxs[hashmx] = mx
-        counts[hashmx] += 1
-    return mxs, counts
+        yield mx
 
 
-def sample_wf_distribution(n, reps, seed):
+def sample_branch_lengths(n, reps):
+    kvec = np.arange(2, n + 1, dtype=int)
+    branch_lengths = np.random.exponential(scale=1 / binom(kvec, 2), size=(reps, n - 1))
+    total_branch_lengths = branch_lengths @ kvec
+    for row, total_length in zip(branch_lengths, total_branch_lengths):
+        rel_row = row / total_length
+        yield rel_row
+
+
+def sample_wf_distribution(n, reps):
     """
     Calculate variates for the probability distribution Q under Wright Fisher model.
 
@@ -53,26 +58,11 @@ def sample_wf_distribution(n, reps, seed):
          Array of variates (reps, n-1)
 
     """
-    matrices, counts = sample_matrices3(n, reps, seed)
-    kvec = np.arange(2, n + 1, dtype=int)
-    branch_lengths = np.random.exponential(scale=1 / binom(kvec, 2), size=(reps, n - 1))
-    total_branch_lengths = branch_lengths @ kvec
-    rel_branch_lengths = list()
-    for row, total_length in zip(branch_lengths, total_branch_lengths):
-        rel_row = row / total_length
-        rel_branch_lengths.append(rel_row)
-    rel_branch_lengths = np.array(rel_branch_lengths)
-    variates = list()
-    rbl_count = 0
-    for key in matrices.keys():
-        for j in range(counts[key]):
-            mx = matrices[key]
-            variate = (mx.T).dot(rel_branch_lengths[rbl_count])
-            rbl_count += 1
-            err = 1 - np.sum(variate)
-            variate[np.argmax(variate)] += err
-           variates.append(variate)
-    return np.array(variates)
+    for mx, rel_branch_length in zip(sample_matrix(n, reps), sample_branch_lengths(n, reps)):
+        variate = (mx.T).dot(rel_branch_length)
+        err = 1 - np.sum(variate)
+        variate[np.argmax(variate)] += err
+        yield(variate)
 
 
 def sample_WF_pllel(n, size, njobs):
@@ -80,15 +70,6 @@ def sample_WF_pllel(n, size, njobs):
     results = Parallel(n_jobs=njobs)(delayed(sample_wf_distribution)(n, size, seed) for seed in seeds)
     return np.vstack(results)
 
-
-def sample_matrices_pllel(n, size, njobs):
-    seeds = np.random.choice(2 * njobs, njobs, replace=False)
-    results = Parallel(n_jobs=njobs)(delayed(sample_matrices3)(n, size, seed) for seed in seeds)
-    mxs, counts = Counter(), Counter()
-    for pair in results:
-        mxs = {**mxs, **pair[0]}
-        counts = counts + pair[1]
-    return mxs, counts
 
 @click.command()
 @click.argument('job_no')
@@ -113,11 +94,21 @@ def main(job_no, n, size, njobs, dirx):
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
 
     start_time = time()
-    results = sample_WF_pllel(n, size, njobs)
     fname = dirx + "/wf_samples_" + job_no + ".csv"
+    count = 0
+    with open(fname, "a") as csv_file:
+        writer = csv.writer(csv_file, delimiter=',')
+        for line in sample_wf_distribution(n, size):
+            count += 1
+            if count % 50000 == 0:
+                print(count)
+                sys.stdout.flush()
+            writer.writerow(line)
+
+
     #np.savetxt(fname, results, delimiter=",")
-    with gzip.open(fname, 'wb') as outfile:
-        pickle.dump(results, outfile)
+    #with gzip.open(fname, 'wb') as outfile:
+    #    pickle.dump(results, outfile)
     outfile = open(fname, 'r')
     LOGGER.output_file(outfile.name)
     outfile.close()
