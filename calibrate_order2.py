@@ -77,7 +77,7 @@ def approx_threshold(n, seg_sites, sreps=10000, wreps=10000, fpr=0.02):
     for i, q in enumerate(selectiontest.sample_wf_distribution(n, wreps)):
         variates0[i] = q
     ev = np.mean(variates0, axis=0)
-    if np.any(ev = 0):
+    if np.any(ev == 0):
         print('Zero in mean ', ev)
     covar = np.cov(variates0[:,:-1], rowvar=False)
     variates1 = selectiontest.sample_uniform_distribution(n, sreps)
