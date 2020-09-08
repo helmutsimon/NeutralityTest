@@ -77,6 +77,8 @@ def approx_threshold(n, seg_sites, sreps=10000, wreps=10000, fpr=0.02):
     for i, q in enumerate(selectiontest.sample_wf_distribution(n, wreps)):
         variates0[i] = q
     ev = np.mean(variates0, axis=0)
+    if np.any(ev = 0):
+        print('Zero in mean ', ev)
     covar = np.cov(variates0[:,:-1], rowvar=False)
     variates1 = selectiontest.sample_uniform_distribution(n, sreps)
     results = list()
@@ -88,6 +90,8 @@ def approx_threshold(n, seg_sites, sreps=10000, wreps=10000, fpr=0.02):
             h0 = selectiontest.multinomial_pmf(sfs, seg_sites, ev)
         h1 = np.mean(selectiontest.multinomial_pmf(sfs, seg_sites, variates1))
         rho = np.log10(h1) - np.log10(h0)
+        if not (h0 > 0 and h1 > 0):
+            print('Non positive: ', h0, h1)
         results.append(rho)
     results = np.array(results)
     print("Count -inf: ", np.sum(np.isneginf(results)))
@@ -126,8 +130,9 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
 
     start_time = time()
-    rows = list()
+    rows, index = list(), list()
     for sn in seg_sites_values:
+        index.append(sn)
         thresholds = list()
         if sn == 0:
             break
@@ -139,7 +144,7 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
             sys.stdout.flush()
             thresholds.append(thr)
         rows.append(thresholds)
-    results = pd.DataFrame(rows, index = seg_sites_values, columns=sample_size_values)
+    results = pd.DataFrame(rows, index=index, columns=sample_size_values)
     fname = dirx + "/calibration_" + job_no + ".csv"
     results.to_csv(fname)
     outfile = open(fname, 'r')
