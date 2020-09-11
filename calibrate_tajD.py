@@ -74,6 +74,8 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, reps, dirx):
 
     start_time = time()
     rows = list()
+    print('job = ', job_no)
+    print('fpr = ', fpr, '\n')
     for sn in seg_sites_values:
         thresholds = list()
         if sn == 0:
@@ -87,8 +89,8 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, reps, dirx):
         rows.append(thresholds)
     columns = list()
     for ssv in sample_size_values:
-        columns.append(ssv + 'lower')
-        columns.append(ssv + 'upper')
+        columns.append(str(ssv) + '_lower')
+        columns.append(str(ssv) + '_upper')
     results = pd.DataFrame(rows, index = seg_sites_values, columns=columns)
     fname = dirx + "/calibration_tajD_" + job_no + ".csv"
     results.to_csv(fname)
