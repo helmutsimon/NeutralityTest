@@ -196,7 +196,9 @@ def main(reps, job_no, pop_size, n, seg_sites, theta, growth_rate, sho, she, sf,
 
     print('Neutral population')
     msms_out = run_simulations(reps, pop_size, n, theta, seg_sites, 0, None, None, None, None, recomb_rate)
-    variates0 = selectiontest.sample_wf_distribution(n, reps)
+    variates0 = np.empty((reps, n - 1), dtype=float)
+    for i, q in enumerate(selectiontest.sample_wf_distribution(n, reps)):
+        variates0[i] = q
     variates1 = selectiontest.sample_uniform_distribution(n, reps)
     trs, taj_D, sfs_list = process_simulation_output(msms_out, variates0, variates1, reps)
     results['rho_false'] = trs
