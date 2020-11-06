@@ -16,7 +16,38 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
     """
-    Get SFS from vcf data for given population. The panel file is used to select probands.
+    Get SFS from vcf data for given population and sequence. The panel file is used to select probands.
+
+    Parameters
+    ----------
+    vcf_file: pyvcf class: Reader (https://pyvcf.readthedocs.io/en/latest/)
+        Variant details
+
+    panel: pandas DataFrame
+        Proband details
+
+    chrom: int
+        Chromosome
+
+    start: int
+        Start position of sequence.
+
+    end: int
+        End position of sequence.
+
+    select_chr: bool
+        If True, sample first chromosome. If false, use both.
+
+    Returns
+    -------
+    list
+        Site frequency spectrum
+
+    int
+        Sample size
+
+    list
+        Names of variants common to all elements of the sample.
 
     """
     n = panel.shape[0]
@@ -41,14 +72,10 @@ def get_sfs(vcf_file, panel, chrom, start, end, select_chr=True):
                         allele_count += int(gt[0])
                     else:
                         allele_count += int(gt[0]) + int(gt[1])
-                #print(record.ID.ljust(11), record.POS, record.REF, record.INFO['AA'][0], record.ALT[0],
-                #         "%3d" % allele_count, "%.6f" % (allele_count / 5008), record.INFO['AF'])
             if allele_count < n:    #Some SNPs may not segregate in some subpopulations.
                 allele_counts.append(allele_count)
             else:
                 non_seg_snps.append(record.ID)
-    #print('Total SNPs               =', count)
-    #print('SNPs with valid ancestor =', anc_count)
     sfs_c = Counter(allele_counts)
     del sfs_c[0]
     sfs = np.zeros(n - 1, int)

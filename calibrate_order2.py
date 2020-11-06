@@ -85,13 +85,13 @@ def approx_threshold(n, seg_sites, sreps=10000, wreps=10000, fpr=0.02):
     errcount = 0
     for sfs in selectiontest.generate_sfs_array(n, seg_sites, sreps):
         h0 = approx_likelihood(sfs, ev=ev, covar=covar)
+        h1 = np.mean(selectiontest.multinomial_pmf(sfs, seg_sites, variates1))
+        if not (h0 > 0 and h1 > 0):
+            print('Non positive: ', h0, h1)
         if h0 <= 0:
             errcount += 1
             h0 = selectiontest.multinomial_pmf(sfs, seg_sites, ev)
-        h1 = np.mean(selectiontest.multinomial_pmf(sfs, seg_sites, variates1))
         rho = np.log10(h1) - np.log10(h0)
-        if not (h0 > 0 and h1 > 0):
-            print('Non positive: ', h0, h1)
         results.append(rho)
     results = np.array(results)
     print("Count -inf: ", np.sum(np.isneginf(results)))
@@ -132,7 +132,6 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
     start_time = time()
     rows, index = list(), list()
     for sn in seg_sites_values:
-        index.append(sn)
         thresholds = list()
         if sn == 0:
             break
@@ -143,6 +142,7 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
             print("%.2f" % (duration / 60.), "%4d" % n, "%3d" % sn, "%.3f" % thr)
             sys.stdout.flush()
             thresholds.append(thr)
+            index.append(sn)
         rows.append(thresholds)
     results = pd.DataFrame(rows, index=index, columns=sample_size_values)
     fname = dirx + "/calibration_" + job_no + ".csv"

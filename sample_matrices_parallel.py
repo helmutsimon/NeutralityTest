@@ -1,5 +1,11 @@
 # coding=utf-8
 
+"""
+Generate a sample of randomly generated tree matrices, using joblib parallel processing.
+Returns two dictionaries whose keys are hashed matrices. One dictionary contains the matrices themselves, the other
+the counts of each matrix in the sample.
+"""
+
 import numpy as np
 import os
 import gzip, pickle

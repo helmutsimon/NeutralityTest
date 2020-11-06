@@ -36,6 +36,45 @@ def create_heatmap_table(results, panel_all, statistic):
     return heat_table
 
 
+
+def test_neutrality_check(sfs, variates0=None, variates1=None, reps=10000):
+    """
+    Calculate :math:`\\rho`, the log odds ratio of the data for the distribution given by variates0 over
+    the distribution given by variates1.
+
+    Parameters
+    ----------
+    sfs: list
+        Site frequency spectrum, e.g. [1, 3, 0, 2, 1]
+    variates0: numpy array
+        Array of variates from null hypothesis distribution. Default uses Wright-Fisher model.
+    variates1: numpy array
+        Array of variates from alternative distribution. Default uses \`uniform\' model.
+    reps: int
+        Number of variates to generate if default is used.
+
+    Returns
+    -------
+    numpy.float64
+        :math:`\\rho` (value of log odds ratio). Values can include inf, -inf or nan if one or both probabilities
+        are zero due to underflow error.
+
+    """
+    n = len(sfs) + 1
+    segsites = sum(sfs)
+    if variates0 is None:
+        variates0 = np.empty((reps, n - 1), dtype=float)
+        for i, q in enumerate(selectiontest.sample_wf_distribution(n, reps)):
+            variates0[i] = q
+    if variates1 is None:
+        variates1 = selectiontest.sample_uniform_distribution(n, reps)
+    multpmf = selectiontest.multinomial_pmf(sfs, segsites, variates0)
+    print('Zero count: ', np.sum(multpmf == 0.))
+    h0 = np.sum(multpmf)
+    h1 = np.sum(selectiontest.multinomial_pmf(sfs, segsites, variates1))
+    return np.log10(h1) - np.log10(h0)
+
+
 @click.command()
 @click.argument('job_no')
 @click.argument('chrom')
@@ -93,7 +132,9 @@ def main(job_no, chrom, start, interval, segments, reps, demog, dirx):
         panel = panel_select[panel_select['pop'] == pop]
         n = panel.shape[0]
         if pop in demog_pops:
-            variates = selectiontest.piecewise_constant_variates(n, timepoints, pop_sizes, reps)
+            variates = np.empty((reps, n - 1), dtype=float)
+            for i, (q, transf_coal_times) in enumerate(selectiontest.piecewise_constant_variates(n, timepoints, pop_sizes, reps)):
+                variates[i] = q
             LOGGER.log_message(pop.ljust(30), label="Modified demographic history for population ")
         else:
             variates = np.empty((reps, n - 1), dtype=float)
@@ -112,7 +153,7 @@ def main(job_no, chrom, start, interval, segments, reps, demog, dirx):
             print('Tajimas D                =', tajd)
             print(sfs)
             print(type(sfs))
-            rho = selectiontest.test_neutrality(sfs, variates0=variates)  # variates parameter only if required
+            rho = test_neutrality_check(sfs, variates0=variates)  # variates parameter only if required
             print('\u03C1                        =', rho)
             if len(non_seg_snps) > 0:
                 print(non_seg_snps)

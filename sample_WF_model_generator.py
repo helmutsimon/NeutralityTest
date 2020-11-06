@@ -9,9 +9,7 @@ the counts of each matrix in the sample.
 import numpy as np
 import os, sys
 import csv
-#import gzip, pickle
 from scipy.special import binom
-#from collections import Counter, defaultdict
 from joblib import Parallel, delayed
 from selectiontest import selectiontest
 from time import time

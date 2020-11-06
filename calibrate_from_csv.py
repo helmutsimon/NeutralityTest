@@ -30,6 +30,16 @@ def get_WF_likelihood(sfs, infile):
     return lhood_sum / count
 
 
+def get_WF_likelihood2(sfs, infile):
+    count = 0
+    seg_sites = sum(sfs)
+    lhood_sum = 0
+    for probs in np.loadtxt(infile, delimiter=','):   #genfromtxt
+        count += 1
+        lhood_sum += selectiontest.multinomial_pmf(sfs, seg_sites, probs)
+    return lhood_sum / count
+
+
 def calculate_rho(sfs, seg_sites, fname, variates1):
     infile = open(fname)
     h0 = get_WF_likelihood(sfs, infile)
@@ -105,7 +115,7 @@ def main(job_no, fname, sample_size, seg_sites_values, fpr, sreps, njobs, dirx):
     LOGGER.log_message('Name = ' + np.__name__ + ', version = ' + np.__version__, label=label)
     LOGGER.log_message('Name = ' + pd.__name__ + ', version = ' + pd.__version__, label=label)
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
-
+    print('*** Calculating likelihood for all variates. ***')
     start_time = time()
     thresholds = list()
     fname = dirx + '/' + fname

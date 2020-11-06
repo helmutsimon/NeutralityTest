@@ -65,9 +65,8 @@ def compute_threshold(n, seg_sites, njobs, fname, chunksize, wreps, sreps=10000,
     results = list()
     #for sfs in sfs_array:
     for i, sfs in enumerate(sfs_array):
-        if i % 1000 == 0:
-            print(time(), i)
-            sys.stdout.flush()
+        print(time(), i)
+        sys.stdout.flush()
         count = 0
         h0 = 0
         mask = sfs > 0
