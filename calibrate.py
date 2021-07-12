@@ -42,11 +42,10 @@ def main(job_no, seg_sites_values, sample_size_values, fpr, sreps, wreps, njobs,
     LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
 
     start_time = time()
+    seg_sites_values = [x for x in seg_sites_values if x > 0]
     rows = list()
     for sn in seg_sites_values:
         thresholds = list()
-        if sn == 0:
-            break
         for n in sample_size_values:
             print(sn, n)
             thr = selectiontest.compute_threshold(n, sn, sreps=sreps, wreps=wreps, fpr=fpr)
