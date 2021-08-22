@@ -1,5 +1,5 @@
 # NeutralityTest
-This repository contains Python code supporting the analyses in the paper *A New Statistical Test Provides Evidence of Selection Against Deleterious Mutations in Genes Promoting Disease Resistance* (in preparation).
+This repository contains Python code supporting the analyses in the paper Simon and Huttley 2021 *A New Likelihood-based Test for Natural Selection* bioRxiv doi = 10.1101/2021.07.04.451068.
 
 The central topic is the calculation of a statistic for selective neutrality, &rho;, which is a relative likelihood of two evolutionary models.
 
