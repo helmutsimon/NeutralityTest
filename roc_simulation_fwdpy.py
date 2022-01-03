@@ -9,10 +9,12 @@ A sample run statement is:
 nohup python3 /Users/helmutsimon/repos/NeutralityTest/roc_simulation_fwdpy.py test1 1000 0.005 0.04 0.02 20 1500 -nr 500 > rsf_test1.txt &
 """
 
+
 import pandas as pd
 import gzip, pickle
 import os, sys
 import pybind11
+import scipy
 from collections import Counter
 from selectiontest import selectiontest
 import attr
@@ -22,11 +24,6 @@ import click
 import fwdpy11
 from joblib import Parallel, delayed
 from scitrack import CachingLogger, get_file_hexdigest
-
-
-abspath = os.path.abspath(__file__)
-projdir = "/".join(abspath.split("/")[:-1])
-sys.path.append(projdir)
 
 
 LOGGER = CachingLogger(create_dir=True)
@@ -69,13 +66,14 @@ def evolve_sfs(N, genome_length, params, nsam, l, seed, variates0=None, variates
 @click.argument('n', type=int)       # sample size
 @click.argument('l', type=int)       # number of generations to run simulation
 @click.option('-h', '--h', default=0.5, help="Dominance coefficient, default = 0.5 for additive effect")
+@click.option('-r', '--recomb', default=0.0, help="Recombination rate, default = 0.0")
 @click.option('-g', '--genome_length', default=100.0)
 @click.option('-nr', '--nreps', default=10000, help="Number of simulations")
 @click.option('-s', '--seed', type=int, default=None)
 @click.option('-j', '--n_jobs', default=4, type=int, help='Number of parallel jobs. Default is 4.')
 @click.option('-d', '--dirx', default='data', type=click.Path(),
               help='Directory name for data and log files. Default is data')
-def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_jobs, dirx):
+def main(job_no, pop_size, un, us, s, n, l, h, recomb, genome_length, nreps, seed, n_jobs, dirx):
     start_time = time()
     np.set_printoptions(precision=3)                #
     if not os.path.exists(dirx):
@@ -92,10 +90,11 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     LOGGER.log_message('Name = ' + fwdpy11.__name__ + ', version = ' + fwdpy11.__version__, label=label)
     LOGGER.log_message('Name = ' + pybind11.__name__ + ', version = ' + pybind11.__version__, label=label)
     LOGGER.log_message('Name = ' + attr.__name__ + ', version = ' + attr.__version__, label=label)
+    LOGGER.log_message('Name = ' + selectiontest.__name__ + ', version = ' + selectiontest.__version__, label=label)
+    LOGGER.log_message('Name = ' + scipy.__name__ + ', version = ' + scipy.__version__, label=label)
     if seed is not None:
         np.random.seed(seed)
     results = dict()
-    recomb_rate = 0
     s = -s                    # selection coefficient is negative
     lam = -us / s
     print('Fixation metric: ', -pop_size * s * np.exp(- lam))  # See Cvijovic p.1238 (requires this metric >>1)
@@ -105,17 +104,19 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     LOGGER.log_message(intervals, label="Interval for Charlesworth".ljust(50))
     print('theta= ', theta)
     pdict = {"gvalue": fwdpy11.Multiplicative(1.0),  # multiplicave effect, s is effect of mutant homozygote
-              "rates": (un, us, 0.0),  # neutral mutation rate, selected mutation rate, recombination rate
+              "rates": (un, us, recomb),  # neutral mutation rate, selected mutation rate, recombination rate
               "nregions": [fwdpy11.Region(0, 1.0, 1)],  # region for neutral mutations -
               # not needed if using fwdpy11.infinite_sites
               "sregions": [fwdpy11.ConstantS(0, 1.0, 1, s, h)],  # whole genome
-              "recregions": [],  # region for recombination (none)
+              "recregions": [fwdpy11.Region(0, 1.0, 1)],  # region for recombination (none)
               "demography": fwdpy11.DiscreteDemography(),  # No population structure or growth
               "simlen": l}  # Should >> TMRCA if we are to get full tree
     params = fwdpy11.ModelParams(**pdict)
     np.set_printoptions(precision=3)
     seeds = np.random.choice(nreps * 50, size=nreps, replace=False)
-    variates0 = selectiontest.sample_wf_distribution(n, nreps)
+    variates0 = np.empty((nreps, n - 1), dtype=float)
+    for i, q in enumerate(selectiontest.sample_wf_distribution(n, nreps)):
+        variates0[i] = q
     variates1 = selectiontest.sample_uniform_distribution(n, nreps)
     fp_results = Parallel(n_jobs=n_jobs)(delayed(evolve_sfs)
                         (pop_size, genome_length, params, n, l, seed, variates0, variates1) for seed in seeds)
@@ -135,7 +136,6 @@ def main(job_no, genome_length, pop_size, un, us, s, h, n, l, nreps, seed, n_job
     print(sfs_mean)
     seg_site_mean = np.mean(sfs_df, axis=0).to_numpy().sum()
     LOGGER.log_message("%.2f" % seg_site_mean, label="Mean Number of segregating sites".ljust(50))
-    #theta_est = seg_site_mean / sum(1 / np.arange(1, seg_site_mean))
     fname = dirx + '/fwdpy_bgrdsel_sfs_' + job_no + '.csv'
     sfs_df.to_csv(fname)
     outfile = open(fname, 'r')
